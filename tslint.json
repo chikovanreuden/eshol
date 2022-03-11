@@ -1,0 +1,27 @@
+{
+  "defaultSeverity": "error",
+  "extends": [
+    "tslint:recommended"
+  ],
+  "jsRules": {},
+  "rules": {
+    "no-var-keyword": true,
+    "triple-equals": true,
+    "one-variable-per-declaration": [true, "ignore-for-loop"],
+    "no-use-before-declare": true,
+    "no-invalid-template-strings": true,
+    "no-floating-promises": true,
+    "semicolon": [true, "never"],
+    "indent": [true, "tabs", 2],
+    "comment-format": false,
+    "no-trailing-whitespace": true,
+    "no-namespace": false,
+    "no-bitwise": false,
+    "max-classes-per-file": [true, 2],
+    "radix": false,
+    "no-console": false,
+    "no-angle-bracket-type-assertion": false,
+    "no-shadowed-variable": false
+  },
+  "rulesDirectory": []
+}

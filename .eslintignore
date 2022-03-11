@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+.eslintrc.js
+
+src/dbQuery.ts
+src/tsbot/tstree.ts
+src/**/*.js
+src/test/**/*
