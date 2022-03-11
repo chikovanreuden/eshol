@@ -1,6 +1,6 @@
 import * as dotenv from "dotenv";
 dotenv.config();
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
+import axios, { AxiosRequestConfig } from "axios";
 import dbp from "../db";
 import { User, Shoppinglist, Item } from "../cmdb";
 import WLOGGER from "../wlogger";
