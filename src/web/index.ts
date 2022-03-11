@@ -24,6 +24,7 @@ app.use(cors(
 	}
 ));
 app.disable('x-powered-by');
+
 // Generate new CSP Nounce
 app.use((_req: Request, res: Response, next: NextFunction) => {
 	res.locals.cspNonce = crypto.randomBytes(16).toString("hex");
@@ -209,7 +210,7 @@ if (process.env.NODE_ENV === 'development') {
 // 5xx handler
 // app.use(internalError);
 
-app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+app.use((err: unknown, _req: Request, res: Response) => {
 	WLOGGER.error("500 Error", err);
 	res.status(500).end();
 });
