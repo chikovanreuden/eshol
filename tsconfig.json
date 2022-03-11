@@ -1,0 +1,53 @@
+{
+    "extends": "@tsconfig/node14/tsconfig.json",
+    "compileOnSave": true,
+    "compilerOptions": {
+        // lib, module, target is set in 'extends'
+        // "lib": ["ES2020"],
+        // "module": "commonjs",
+        // "target": "ES2020",
+        "noImplicitAny": true,
+        "noImplicitReturns": true,
+        "noUnusedParameters": true,
+        "noUnusedLocals": false,
+        "removeComments": true,
+        "preserveConstEnums": true,
+        "sourceMap": true,
+        "rootDir": "src",
+        "outDir": "dist",
+        "baseUrl": ".",
+        "allowJs": true,
+        "checkJs": false,
+        "declaration": true, 
+        "strictNullChecks": true,
+        "strictPropertyInitialization": true,
+        // useUnknownInCatchVariables: true,
+        "moduleResolution": "node",
+        "esModuleInterop": true,
+        "resolveJsonModule": true,
+        "allowUnreachableCode": false,
+        // "importsNotUsedAsValues": "error"
+        "listFiles": true,
+        "types": [
+            "node"
+        ],
+        "typeRoots": [
+            "./src/types",
+            "./node_modules/@types"
+        ]
+    },
+    "include": [
+        "src/**/*.ts",
+        "src/**/*.d.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "**/*.spec.ts",
+        "*/test/*",
+        "./src/**/*.js",
+        "./src/web/static/*",
+        "dist",
+        "./src/tsbot/tstree.ts",
+        "./tools/*"
+    ]
+}
