@@ -238,4 +238,10 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 		const rows = query[0] as VCiShoppinglistEntity[];
 		return rows.map(spl => new Shoppinglist(spl));
 	}
+
+	static async findManyByUser(user: User): Promise<Shoppinglist[]>{
+		const query = await dbp.query("SELECT * FROM vCiShoppinglist vcs WHERE `owner`=? OR `splUid` IN (SELECT `splUid` FROM ciShoppinglistMember csm WHERE userUid=?);", [user.userUid, user.userUid]);
+		const rows = query[0] as VCiShoppinglistEntity[];
+		return rows.map(spl => new Shoppinglist(spl));
+	}
 }
