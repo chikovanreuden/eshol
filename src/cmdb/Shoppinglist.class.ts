@@ -45,9 +45,35 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 	get owner(): ICiShoppinglistEntity["owner"]{ return this.internal().owner; }
 
 	async getOwnerAsync(): Promise<User | null>{ return User.findOneByUserUid(this.owner); }
-	async setOwnerAsync(owner: User): Promise<void>{
-		if(owner.isActive){
-			await dbp.query("UPDATE `eshol`.`ciShoppinglist` SET `owner` = ? WHERE `splUid` = ?;", [owner.userUid, this.splUid]);
+	async setOwnerAsync(newOwner: User, oldOwnerKeppPermissions = true): Promise<void>{
+		if(newOwner.isActive){
+			const dbcon = await dbp.getConnection();
+			try{
+				await dbcon.beginTransaction();
+				// Delete the Permissions of new Owner from the SplMemberlist
+				await dbcon.query("DELETE FROM ciShoppinglistMemeber cisplmbr WHERE `splUid`=? AND `userUid`=?;", [this.splUid, newOwner.userUid]);
+				if(oldOwnerKeppPermissions){
+					// Insert new Permissions for the old Owner into the SplMemberlist
+					await dbcon.query("INSERT INTO ciShoppinglistMemeber cisplmbr SET ?;", [{
+						splUid: this.splUid,
+						userUid: this.owner,
+						permission: "rw"
+					}]);
+				}
+				// Change Owner (userUid) of the Spl
+				await dbp.query("UPDATE `eshol`.`ciShoppinglist` SET `owner` = ? WHERE `splUid` = ?;", [newOwner.userUid, this.splUid]);
+				await this.sync();
+			}catch(err){
+				const errStr = "db_error_transation_getOwnerAsync";
+				WLOGGER.error( errStr, {
+					err,
+					newOwner: newOwner.toJson("internal")
+				});
+				await dbcon.rollback();
+				throw new Error("db_error_transation_getOwnerAsync");
+			}finally{
+				dbcon.release();
+			}
 		}else{
 			throw new Error("user_not_active");
 		}
