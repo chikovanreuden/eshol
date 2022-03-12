@@ -174,6 +174,26 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 		return rows.map(spl => new Shoppinglist(spl));
 	}
 
+	static async findMany(filter?: {
+		privacy: ICiShoppinglistEntity["privacy"]
+	}): Promise<Shoppinglist[]>{
+		const dbcon = await dbp.getConnection();
+		let whereClause = "";
+		const whereContitions: string[] = [];
+		if(filter){
+			if(filter.privacy){
+				whereContitions.push(`\`privacy\` = ${dbcon.escape(filter.privacy)}`);
+			}
+		}
+		if(whereContitions.length > 0){
+			whereClause += ` WHERE ${whereContitions.join(" AND ")}`;
+		}
+		const query = await dbcon.query(`SELECT * FROM \`eshol\`.\`vCiShoppinglist\`${whereClause};`);
+		dbcon.release();
+		const rows = query[0] as VCiShoppinglistEntity[];
+		return rows.map(spl => new Shoppinglist(spl));
+	}
+
 	static async findOneBySplUid(splUid: ICiShoppinglistEntity["splUid"]): Promise<Shoppinglist>{
 		const query = await dbp.query("SELECT * FROM `eshol`.`vCiShoppinglist` WHERE `splUid` = ?;", [splUid]);
 		const rows = query[0] as VCiShoppinglistEntity[];
