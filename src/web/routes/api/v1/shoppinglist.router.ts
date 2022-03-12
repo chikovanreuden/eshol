@@ -11,9 +11,28 @@ router.get("/", async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
 	const spls = await Shoppinglist.findAll();
 	let vis: "public" | "private" | "internal" = "public";
+	let spls: Shoppinglist[];
 	if(req.userAccount){
-		if(req.userAccount.role === "admin") vis = "internal";
-		if(req.userAccount.role === "moderator") vis = "private";
+		switch(req.userAccount.role){
+			case "admin":
+				vis = "internal";
+				spls = await Shoppinglist.findAll();
+				rtn.addData("shoppinglist", spls.map(spl => spl.toJson(vis))).send(200);
+				return;
+			case "moderator":
+				vis = "private";
+				spls = await Shoppinglist.findAll();
+				rtn.addData("shoppinglist", spls.map(spl => spl.toJson(vis))).send(200);
+				return;
+			default:
+				vis = "public";
+				spls = await Shoppinglist.findManyByUser(req.userAccount);
+				rtn.addData("shoppinglist", spls.map(spl => spl.toJson(vis))).send(200);
+				return;
+		}
+	}else{
+		spls = await Shoppinglist.findMany({privacy: "public"});
+		rtn.addData("shoppinglist", spls.map(spl => spl.toJson(vis))).send(200);
 	}
 	rtn.addData("shoppinglist", spls.map(spl => spl.toJson(vis))).send();
 	return;
