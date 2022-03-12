@@ -429,7 +429,7 @@ export class User extends Ci implements IBaseCi, VCiUserEntity {
 			const ciDbRows = ciDbQuery[0] as VCiUserEntity[];
 			if(ciDbRows.length === 1){
 				const user = new User(ciDbRows[0]);
-				await sendEmailVerificationToken(user);
+				sendEmailVerificationToken(user);
 				return user;
 			}else{
 				throw new Error("Error: User.create() - couldn't find created User by newCiUid");
