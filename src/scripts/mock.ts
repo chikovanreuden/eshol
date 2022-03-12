@@ -1,16 +1,17 @@
 import * as dotenv from "dotenv";
 dotenv.config();
-import axios, { AxiosRequestConfig } from "axios";
+import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 import dbp from "../db";
 import { User, Shoppinglist, Item } from "../cmdb";
 import WLOGGER from "../wlogger";
 import * as id from "../id";
+import { IJsonResponse } from "src/classes/JsonResponse";
 
 const API_URL = (path?: string) => {
 	return `http://localhost:${process.env.WEB_PORT}/api${path ? path : ""}`;
 };
 
-const instance = axios.create({
+const publicInstance = axios.create({
 	baseURL: API_URL(),
 	headers: {'X-Custom-Header': 'foobar'}
 });
@@ -22,7 +23,7 @@ interface ApiEndpoint extends AxiosRequestConfig {
 	expectedHttpCode?: number
 }
 
-const callApi = async (endpoint: ApiEndpoint) => {
+const callApi = async (endpoint: ApiEndpoint, instance: AxiosInstance) => {
 	try{
 		const response = await instance(endpoint);
 		WLOGGER.debug("API Endpoint " + endpoint.url, {
@@ -42,6 +43,20 @@ const callApi = async (endpoint: ApiEndpoint) => {
 	}
 };
 
+const users = {
+	chiko:{
+		username: "chiko",
+		email: "chiko@xcsone.de",
+		password: "Password123!"
+	},
+	alice: {
+		username: "alice",
+		displayname: "Alive",
+		email: "alice@xcsone.de",
+		password: "Password123!"
+	},
+};
+
 const mockUrls: ApiEndpoint[] = [
 	{
 		method: "get",
@@ -56,17 +71,13 @@ const mockUrls: ApiEndpoint[] = [
 	{
 		method: "get",
 		url: "/item",
-		expect: "success",
+		expect: "fail",
 	},
 	{
 		method: "post",
 		url: "/user",
 		expect: "success",
-		data: {
-			username: "alice",
-			email: "alice@xcsone.de",
-			password: "Password123!"
-		}
+		data: users.alice
 	},
 	{
 		method: "post",
@@ -124,8 +135,27 @@ const fillDb = async (): Promise<void> => {
 const main = async () => {
 	await fillDb();
 	for(const endpoint of mockUrls){
-		await callApi(endpoint);
+		await callApi(endpoint, publicInstance);
 	}
+	const chikoAuthResponse = await publicInstance({
+		method: "post",
+		url: "/auth",
+		data: {
+			loginname: users.chiko.username,
+			password: users.chiko.password
+		}
+	});
+	const chikoAuthResponseData = chikoAuthResponse.data as IJsonResponse;
+	const chikoInstance = axios.create({
+		baseURL: API_URL(),
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+		headers: {'X-API-Key': (chikoAuthResponseData.data.apitoken.token as string)}
+	});
+	await callApi({
+		method: "get",
+		url: "/item",
+		expect: "success"
+	}, chikoInstance);
 };
 
 main().then(() => {

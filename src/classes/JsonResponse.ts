@@ -1,7 +1,7 @@
 import { Response } from "express";
 import WLOGGER from "../wlogger";
 
-interface IJsonResponse {
+export interface IJsonResponse {
 	rid: string | undefined
 	result: "ok" | "error" | "internal_error"
 	status: number
