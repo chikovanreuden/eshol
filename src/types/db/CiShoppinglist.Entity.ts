@@ -9,5 +9,5 @@ export interface ICiShoppinglistEntity {
 	updatedAt: Date
 }
 
-export type ICiShoppinglistEntityUpdate = Partial<Pick<ICiShoppinglistEntity, "name" | "privacy" | "owner">>;
+export type ICiShoppinglistEntityUpdate = Partial<Pick<ICiShoppinglistEntity, "name" | "privacy" >>;
 export type ICiShoppinglistEntityCreate = Pick<ICiShoppinglistEntity, "name" | "privacy" | "owner">;
