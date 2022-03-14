@@ -103,18 +103,21 @@ export class JsonResponse {
 			}
 			this.internal().res.status(httpCode).json(this.build());
 			return;
-		}else if(httpCode >= 400 && httpCode <= 499){
-			if(httpCode === 404){
-				this.internal().res.status(httpCode).end();
+		}else {
+			if(this.clearDataOnError) Object.keys(this.data).forEach(key => delete this.data[key]);
+			if(httpCode >= 400 && httpCode <= 499){
+				if(httpCode === 404){
+					this.internal().res.status(httpCode).end();
+					return;
+				}
+				this.internal().res.status(httpCode).json();
+			}else if(httpCode >= 500 && httpCode <= 599){
+				this.message = "internal_error";
+				this.result = "error";
+				this.clearData();
+				this.internal().res.status(500).json(this.build());
 				return;
 			}
-			this.internal().res.status(httpCode).json();
-		}else if(httpCode >= 500 && httpCode <= 599){
-			this.message = "internal_error";
-			this.result = "error";
-			this.clearData();
-			this.internal().res.status(500).json(this.build());
-			return;
 		}
 		this.isSend = true;
 	}
