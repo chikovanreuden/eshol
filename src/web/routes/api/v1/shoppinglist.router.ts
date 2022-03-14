@@ -1,3 +1,7 @@
+/**
+ * TODO: Check for HTTP Response Codes and Clean it up. Change False 401s to 403 if the User is authenticated but its Permissions are insufficient
+ */
+
 import {Request, Response, Router} from "express";
 import { getShoppinglistPermission } from "../../../../lib/permission";
 import JsonResponse from "../../../../classes/JsonResponse";
@@ -7,6 +11,15 @@ import { ICiShoppinglistEntityCreate, ICiShoppinglistEntityUpdate } from "../../
 const router = Router();
 export default router;
 
+/**
+ * Get All Shoppinglists*
+ * If the Client/User is not authenticated:
+ * Show all Shoppinglists wich have set Privacy set to "public".
+ * If authenticated and Client/User has Roles "admin" or "moderator":
+ * Show all Shoppinglists
+ * If authenticated but without any special Role:
+ * Show all public Shoppinglists and those the User has Permissions to, like "read" (r) or "read/write" (rw)
+ */
 router.get("/", async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
 	const spls = await Shoppinglist.findAll();
@@ -64,13 +77,14 @@ router.post("/", async (req: Request, res: Response) => {
 					owner: reqBody.owner,
 					privacy: reqBody.privacy
 				});
-				rtn.addData("shoppinglist", newSplCreated.toJson("private")).send();
+				rtn.addData("shoppinglist", newSplCreated.toJson("internal")).send(200);
+				return;
+			}else{
+				rtn.addError("spl_create_user_not_found").send(404);
 				return;
 			}
-			rtn.addError("user_not_found").send(400);
-			return;
 		}else{
-			rtn.addError("no_permission_create_spl").send(401);
+			rtn.addError("spl_create_no_permission").send(401);
 			return;
 		}
 	}
@@ -112,12 +126,14 @@ router.patch("/:splUid", async (req: Request, res: Response) => {
 				rtn.addData("shoppinglist", spl.toJson((req.userAccount.role === "admin" || req.userAccount.role === "moderator" ? "internal" : "private")));
 				rtn.send();
 				return;
+			}else{
+				rtn.send(403);
+				return;
 			}
-			rtn.send(401);
+		}else{
+			rtn.send(404);
 			return;
 		}
-		rtn.send(404);
-		return;
 	}
 	rtn.send(401);
 	return;
@@ -132,9 +148,11 @@ router.delete("/:splUid", async (req: Request, res: Response) => {
 			if(req.userAccount.role === "admin" || req.userAccount.role === "moderator" || req.userAccount.userUid === spl.owner){
 				await spl.deleteCi();
 				rtn.send(204);
+				return;
 			}
 		}else{
 			rtn.send(401);
+			return;
 		}
 	}
 	rtn.send(404);
@@ -144,8 +162,7 @@ router.delete("/:splUid", async (req: Request, res: Response) => {
 router.get("/:splUid/items", async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
 	const {splUid} = req.params;
-	const spl = await Shoppinglist.findOneBySplUid(splUid);
-	const items = await Item.findAllByShoppinglist(splUid);
+	const [spl, items] = await Promise.all([await Shoppinglist.findOneBySplUid(splUid), await Item.findAllByShoppinglist(splUid)]);
 	if(req.userAccount){
 		if(req.userAccount.role === "admin" || req.userAccount.role === "moderator"){
 			rtn.addData("items", items.map(itm => itm.toJson("internal")));
@@ -161,6 +178,9 @@ router.get("/:splUid/items", async (req: Request, res: Response) => {
 		if(perm){
 			rtn.addData("items", items.map(itm => itm.toJson("private")));
 			rtn.send();
+			return;
+		}else{
+			rtn.send(403);
 			return;
 		}
 	}
