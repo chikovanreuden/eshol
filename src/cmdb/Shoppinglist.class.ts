@@ -5,10 +5,8 @@ import { Ci, IBaseCi, Item, User} from "./index";
 import { ICiShoppinglistEntity, ICiShoppinglistEntityCreate, ICiShoppinglistEntityUpdate } from "../types/db/CiShoppinglist.Entity";
 import { VCiShoppinglistEntity } from "../types/db/VCiShoppinglist.Entity";
 import { ICiShoppinglistMemberEntity } from "../types/db/CiShoppinglistMember.Entity";
-type ShoppinglistUserPermission = {
-	permission: ICiShoppinglistMemberEntity["permission"] | "owner"
-	user: User
-};
+import { ShoppinglistUserPermission } from "./ShoppinglistMember";
+
 const privateShoppinglistData = new WeakMap<any, ICiShoppinglistEntity>();
 
 export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
