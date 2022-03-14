@@ -8,6 +8,7 @@ import JsonResponse from "../../../../classes/JsonResponse";
 import { Shoppinglist, Item, User} from "../../../../cmdb/";
 import { SHOPPINGLIST_SCHEMA_CREATE, SHOPPINGLIST_SCHEMA_UPDATE } from "../../../../lib/validatorLib";
 import { ICiShoppinglistEntityCreate, ICiShoppinglistEntityUpdate } from "../../../../types/db/CiShoppinglist.Entity";
+import { ShoppinglistMember, ShoppinglistUserPermission } from "../../../../cmdb/ShoppinglistMember";
 const router = Router();
 export default router;
 
@@ -22,7 +23,6 @@ export default router;
  */
 router.get("/", async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
-	const spls = await Shoppinglist.findAll();
 	let vis: "public" | "private" | "internal" = "public";
 	let spls: Shoppinglist[];
 	if(req.userAccount){
@@ -47,8 +47,6 @@ router.get("/", async (req: Request, res: Response) => {
 		spls = await Shoppinglist.findMany({privacy: "public"});
 		rtn.addData("shoppinglist", spls.map(spl => spl.toJson(vis))).send(200);
 	}
-	rtn.addData("shoppinglist", spls.map(spl => spl.toJson(vis))).send();
-	return;
 });
 
 router.post("/", async (req: Request, res: Response) => {
@@ -185,5 +183,81 @@ router.get("/:splUid/items", async (req: Request, res: Response) => {
 		}
 	}
 	rtn.send(401);
+	return;
+});
+
+router.get("/:splUid/permissions", async (req: Request, res: Response) => {
+	const rtn = new JsonResponse(res, true);
+	const {splUid} = req.params;
+	const spl = await Shoppinglist.findOneBySplUid(splUid);
+	if(spl){
+		if(req.userAccount){
+			const spl = await Shoppinglist.findOneBySplUid(splUid);
+			if(req.userAccount.role === "admin" || req.userAccount.role === "moderator"){
+				const members = await ShoppinglistMember.findMany({splUid: spl.splUid});
+				const [owner, users] = await Promise.all([User.findOneByUserUid(spl.owner), User.findManyByUserUid(members.map(mbr => mbr.userUid))]);
+				const perms: ShoppinglistUserPermission[] = [];
+				if(owner){
+					perms.push({
+						permission: "owner",
+						user: owner
+					});
+				}
+				for(const mbr of members){
+					const user = users.find(u => u.userUid === mbr.userUid);
+					if(user){
+						perms.push({
+							permission: mbr.permission,
+							user
+						});
+					}
+				}
+				rtn.addData("permissions", perms.map(perm => {
+					return {
+						permission: perm.permission,
+						user: perm.user.toJson("internal")
+					};
+				}));
+				rtn.send();
+				return;
+			}else if(req.userAccount.userUid === spl.owner){
+				if(spl.isActive){
+					const members = await ShoppinglistMember.findMany({splUid: spl.splUid});
+					const [owner, users] = await Promise.all([User.findOneByUserUid(spl.owner), User.findManyByUserUid(members.map(mbr => mbr.userUid))]);
+					const perms: ShoppinglistUserPermission[] = [];
+					if(owner){
+						perms.push({
+							permission: "owner",
+							user: owner
+						});
+					}
+					for(const mbr of members){
+						const user = users.find(u => u.userUid === mbr.userUid);
+						if(user && user.isActive){
+							perms.push({
+								permission: mbr.permission,
+								user
+							});
+						}
+					}
+					rtn.addData("permissions", perms.map(perm => {
+						return {
+							permission: perm.permission,
+							user: perm.user.toJson("private")
+						};
+					}));
+					rtn.send();
+					return;
+				}else{
+					rtn.send(404);
+					return;
+				}
+			}else{
+				rtn.send(403);
+				return;
+			}
+		}
+	}
+	rtn.send(404);
 	return;
 });
