@@ -105,6 +105,7 @@ export class User extends Ci implements IBaseCi, VCiUserEntity {
 	};
 
 	async getShoppinglistsAsync(): Promise<Shoppinglist[]>{
+		// TODO: Change to Promise.all();
 		const owned = await this.getShoppinglistsOwnedAsync();
 		const query = await dbp.query("SELECT * FROM `eshol`.`vCiShoppinglist` WHERE `splUid` IN (SELECT `splUid` FROM `eshol`.`ciShoppinglistMember` WHERE `userUid` = BINARY ?) OR `owner` = BINARY ?;", [this.userUid, this.userUid]);
 		const rows = query[0] as VCiShoppinglistEntity[];
@@ -381,17 +382,20 @@ export class User extends Ci implements IBaseCi, VCiUserEntity {
 	static async findOneByUserUid(userUid: VCiUserEntity["userUid"]): Promise<User | null>{
 		const ciUserQuery = await dbp.query("SELECT * FROM `eshol`.`vCiUser` WHERE `userUid` = BINARY ?;", [userUid]);
 		const ciUserQueryRows = ciUserQuery[0] as VCiUserEntity[];
-		if(ciUserQueryRows.length !== 1)
-			return null;
-		return new User(ciUserQueryRows[0]);
+		if(ciUserQueryRows.length === 1) return new User(ciUserQueryRows[0]);
+		return null;
+	}
+
+	static async findManyByUserUid(userUids: VCiUserEntity["userUid"][]): Promise<User[]> {
+		const query = await dbp.query("SELECT * FROM `eshol`.`vCiUser` WHERE userUid IN (BINARY ?);", [userUids]);
+		const rows = query[0] as VCiUserEntity[];
+		return rows.map(u => new User(u));
 	}
 
 	static async findOneByApitoken(apiToken: string, activeApiToken: boolean): Promise<User | null>{
 		const userQuery = await dbp.query("SELECT * FROM `eshol`.`vCiUser` WHERE `userUid` = BINARY (SELECT `ciUser_userUid` FROM `eshol`.`apitoken` WHERE `token` = BINARY ? AND `active` = ?);", [apiToken, (activeApiToken === true ? "Y" : "N")]);
 		const userQueryRows = userQuery[0] as VCiUserEntity[];
-		if(userQueryRows.length === 1){
-			return new User(userQueryRows[0]);
-		}
+		if(userQueryRows.length === 1) return new User(userQueryRows[0]);
 		return null;
 	}
 

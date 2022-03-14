@@ -11,3 +11,4 @@ export interface ICiShoppinglistMemberEntity {
 
 export type ICiShoppinglistMemberEntityNew = Pick<ICiShoppinglistMemberEntity, "splUid" | "userUid" | "permission">;
 export type ICiShoppinglistMemberEntityCreate = Pick<ICiShoppinglistMemberEntity, "splUid" | "userUid" | "permission">;
+export type ICiShoppinglistMemberEntityUpdate = Pick<ICiShoppinglistMemberEntity, "permission">;

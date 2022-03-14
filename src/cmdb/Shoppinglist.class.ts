@@ -68,7 +68,7 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 					newOwner: newOwner.toJson("internal")
 				});
 				await dbcon.rollback();
-				throw new Error("db_error_transation_getOwnerAsync");
+				throw new Error(errStr);
 			}finally{
 				dbcon.release();
 			}
