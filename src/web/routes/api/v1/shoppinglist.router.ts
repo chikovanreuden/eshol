@@ -192,7 +192,6 @@ router.get("/:splUid/permissions", async (req: Request, res: Response) => {
 	const spl = await Shoppinglist.findOneBySplUid(splUid);
 	if(spl){
 		if(req.userAccount){
-			const spl = await Shoppinglist.findOneBySplUid(splUid);
 			if(req.userAccount.role === "admin" || req.userAccount.role === "moderator"){
 				const members = await ShoppinglistMember.findMany({splUid: spl.splUid});
 				const [owner, users] = await Promise.all([User.findOneByUserUid(spl.owner), User.findManyByUserUid(members.map(mbr => mbr.userUid))]);

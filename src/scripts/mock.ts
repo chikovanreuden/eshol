@@ -156,6 +156,12 @@ const main = async () => {
 		url: "/item",
 		expect: "success"
 	}, chikoInstance);
+
+	await callApi({
+		method: "get",
+		url: "/item",
+		expect: "success"
+	}, chikoInstance);
 };
 
 main().then(() => {
