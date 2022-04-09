@@ -1,12 +1,13 @@
 import dbp from "../db";
 import WLOGGER from "../wlogger";
-import { ICiShoppinglistMemberEntity, ICiShoppinglistMemberEntityCreate, ICiShoppinglistMemberEntityUpdate } from "src/types/db/CiShoppinglistMember.Entity";
+import { ICiShoppinglistMemberEntity, ICiShoppinglistMemberEntityCreate, ICiShoppinglistMemberEntityUpdate } from "../types/db/CiShoppinglistMember.Entity";
 import { OkPacket, PoolConnection } from "mysql2/promise";
 import { IBaseCi, User, Shoppinglist } from "./index";
 
 export interface ShoppinglistUserPermission {
 	permission: ICiShoppinglistMemberEntity["permission"] | "owner"
 	user: User
+	spl: Shoppinglist
 };
 
 const privateSplMbrData = new WeakMap<any, ICiShoppinglistMemberEntity>();
@@ -39,6 +40,7 @@ export class ShoppinglistMember implements IBaseCi{
 			await dbp.query("UPDATE `eshol`.`ciShoppinglistMember` SET ? WHERE splUid = BINARY ? AND userUid = BINARY ?;", [newData, this.splUid, this.userUid]);
 		} catch (error) {
 			WLOGGER.error("Shoppinglist.update()", {
+				params: {newData},
 				error
 			});
 		}finally{
@@ -89,10 +91,15 @@ export class ShoppinglistMember implements IBaseCi{
 			}else{
 				throw new Error("ShoppinglistMember.create() -> rows.length !== 1");
 			}
-		}catch(err){
+		}catch(error){
 			// TODO: Finish the Error Logging
-			WLOGGER.error("", err);
-			throw err;
+			WLOGGER.error("ShoppinglistMember.create()", {
+				params: {
+					newData
+				},
+				error
+			});
+			throw error;
 		}
 	}
 
@@ -109,11 +116,15 @@ export class ShoppinglistMember implements IBaseCi{
 				await dbcon.commit();
 				return false;
 			} else{
-				throw new Error("More");
+				throw new Error("ShoppinglistMember.delete(): more than 1 affected Row");
 			}
 		} catch (error) {
 			await dbcon.rollback();
-			WLOGGER.error("", {
+			WLOGGER.error("ShoppinglistMember.delete()", {
+				params: {
+					spl,
+					user
+				},
 				error
 			});
 			throw error;
@@ -141,10 +152,13 @@ export class ShoppinglistMember implements IBaseCi{
 			const query = await dbcon.query(`SELECT * FROM \`eshol\`.\`ciShoppinglistMember\` ${whereClause};`);
 			const rows = query[0] as ICiShoppinglistMemberEntity[];
 			return rows.map(row => new ShoppinglistMember(row));
-		}catch(err){
+		}catch(error){
 			// TODO: Add Data to log
-			WLOGGER.error({});
-			throw err;
+			WLOGGER.error("ShoppinglistMember.findMany()", {
+				params: search,
+				error
+			});
+			throw error;
 		}finally{
 			dbcon.release();
 		}

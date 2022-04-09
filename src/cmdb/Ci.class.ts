@@ -67,7 +67,7 @@ export class Ci implements ICiEntity{
 	}
 	get ciDescription(): string { return `${this.ciUid} ${this.ciName}`; }
 
-	toString(): string{ return `${this.ciUid} ${this.ciName}`; }
+	toString(): string{ return `${this.ciUid} ${this.isDeleted ? "deleted" : this.ciName}`; }
 
 	async deactivateCi(user?: User): Promise<void> {
 		await dbp.query("UPDATE `eshol`.`ci` SET `ciDeactivatedAt` = CURRENT_TIMESTAMP(), `ciDeactivatedBy` = ? WHERE `ciUid`= BINARY ?;", [(user ? user.userUid : null), this.ciUid]);
@@ -94,14 +94,15 @@ export class Ci implements ICiEntity{
 		if(rows.length !== 1) throw new Error("Error Ci.class.ts::syncCi() -> No Enitity with ciUid '" + this.ciUid + "' found");
 		const row = rows[0];
 		if(row.type !== this.ciInternal().type) throw new Error("Error Ci.class.ts::syncCi() -> Ci Type Missmatch: '" + this.ciUid + "', Class Type: " + this.type + ", DB Ci Type: " + row.type);
-		this.ciInternal().ciName = row.ciName;
-		this.ciInternal().ciCreatedAt = row.ciCreatedAt;
-		this.ciInternal().ciUpdatedAt = row.ciUpdatedAt;
-		this.ciInternal().ciDeactivatedAt = row.ciDeactivatedAt;
-		this.ciInternal().ciDeactivatedBy = row.ciDeactivatedBy;
-		this.ciInternal().ciDeletedAt = row.ciDeletedAt;
-		this.ciInternal().ciDeletedBy = row.ciDeletedBy;
-		this.ciInternal().photoId = row.photoId;
+		// this.ciInternal().ciName = row.ciName;
+		// this.ciInternal().ciCreatedAt = row.ciCreatedAt;
+		// this.ciInternal().ciUpdatedAt = row.ciUpdatedAt;
+		// this.ciInternal().ciDeactivatedAt = row.ciDeactivatedAt;
+		// this.ciInternal().ciDeactivatedBy = row.ciDeactivatedBy;
+		// this.ciInternal().ciDeletedAt = row.ciDeletedAt;
+		// this.ciInternal().ciDeletedBy = row.ciDeletedBy;
+		// this.ciInternal().photoId = row.photoId;
+		privateData.set(this, row);
 	}
 
 	async updateCi(newData: Partial<Pick<ICiEntity, "ciName">>, dbcon: PoolConnection): Promise<void> {
@@ -124,7 +125,7 @@ export class Ci implements ICiEntity{
 				isDeleted: this.isDeleted,
 				isActive: this.isActive
 			};
-		}else	if(vis === "internal"){
+		}else if(vis === "internal"){
 			return {
 				ciUid: this.ciUid,
 				ciName: this.ciName,

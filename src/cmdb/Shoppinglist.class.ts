@@ -4,8 +4,8 @@ import dbp from "../db";
 import { Ci, IBaseCi, Item, User} from "./index";
 import { ICiShoppinglistEntity, ICiShoppinglistEntityCreate, ICiShoppinglistEntityUpdate } from "../types/db/CiShoppinglist.Entity";
 import { VCiShoppinglistEntity } from "../types/db/VCiShoppinglist.Entity";
+import { ShoppinglistMember, ShoppinglistUserPermission } from "./ShoppinglistMember";
 import { ICiShoppinglistMemberEntity } from "../types/db/CiShoppinglistMember.Entity";
-import { ShoppinglistUserPermission } from "./ShoppinglistMember";
 
 const privateShoppinglistData = new WeakMap<any, ICiShoppinglistEntity>();
 
@@ -82,22 +82,53 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 	}
 
 	async getUserPermissions(): Promise<ShoppinglistUserPermission[]>{
+		const members = await ShoppinglistMember.findMany({splUid: this.splUid});
+		const [owner, users] = await Promise.all([User.findOneByUserUid(this.owner), User.findManyByUserUid(members.map(mbr => mbr.userUid))]);
 		const perms: ShoppinglistUserPermission[] = [];
-		const owner = await this.getOwnerAsync();
-		if(owner) perms.push({ user: owner, permission: "owner" });
-		const query = await dbp.query("SELECT * FROM `eshol`.`ciShoppinglistMember` WHERE `splUid` = BINARY ?;", this.splUid);
-		const rows = query[0] as ICiShoppinglistMemberEntity[];
-
-		for(const row of rows){
-			const user = await User.findOneByUserUid(row.userUid);
+		if(owner){
+			perms.push({
+				permission: "owner",
+				user: owner,
+				spl: this
+			});
+		}
+		for(const mbr of members){
+			const user = users.find(u => u.userUid === mbr.userUid);
 			if(user){
 				perms.push({
+					permission: mbr.permission,
 					user,
-					permission: this.owner === user.userUid ? "owner" : row.permission
+					spl: this
 				});
 			}
 		}
 		return perms;
+	}
+
+	async addUserPermission(user: User, permission: ICiShoppinglistMemberEntity["permission"]): Promise<boolean>{
+		const dbcon = await dbp.getConnection();
+		try {
+			await ShoppinglistMember.create({
+				permission,
+				userUid: user.userUid,
+				splUid: this.splUid
+			}, dbcon);
+			return true;
+		} catch (error) {
+			WLOGGER.error("spl_addUserPermission_error",{
+				error,
+				spl: this.toJson("internal"),
+				user: user.toJson("internal"),
+				permission
+			});
+			throw error;
+		}finally{
+			dbcon.release();
+		}
+	}
+
+	async removeUserPermission(user: User): ReturnType<ShoppinglistMember["delete"]>{
+		return ShoppinglistMember.delete(this, user);
 	}
 
 	// async grantUserPermission(user: User){
