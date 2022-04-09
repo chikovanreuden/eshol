@@ -13,13 +13,13 @@ import { VCiUserEntity } from "../types/db/VCiUser.Entity";
 import { IRowCount } from "../types/db/Count.Entity";
 import username_disallow from "../username_disallow";
 import { VCiShoppinglistEntity } from "../types/db/VCiShoppinglist.Entity";
-import { ICiShoppinglistMemberEntity } from "../types/db/CiShoppinglistMember.Entity";
+import { ICiShoppinglistPermissionEntity } from "../types/db/CiShoppinglistPermission.Entity";
 import Visibility from "../types/Vis";
 import { getLinkPublic } from "../lib/links";
 import { sendEmailVerificationConfirmed, sendEmailVerificationToken } from "../mailer";
 
 type UserShoppinglistPermission = {
-	permission: ICiShoppinglistMemberEntity["permission"] | "owner"
+	permission: ICiShoppinglistPermissionEntity["permission"] | "owner"
 	spl: Shoppinglist
 };
 
@@ -107,15 +107,15 @@ export class User extends Ci implements IBaseCi, VCiUserEntity {
 	async getShoppinglistsAsync(): Promise<Shoppinglist[]>{
 		// TODO: Change to Promise.all();
 		const owned = await this.getShoppinglistsOwnedAsync();
-		const query = await dbp.query("SELECT * FROM `eshol`.`vCiShoppinglist` WHERE `splUid` IN (SELECT `splUid` FROM `eshol`.`ciShoppinglistMember` WHERE `userUid` = BINARY ?) OR `owner` = BINARY ?;", [this.userUid, this.userUid]);
+		const query = await dbp.query("SELECT * FROM `eshol`.`vCiShoppinglist` WHERE `splUid` IN (SELECT `splUid` FROM `eshol`.`ciShoppinglistPermission` WHERE `userUid` = BINARY ?) OR `owner` = BINARY ?;", [this.userUid, this.userUid]);
 		const rows = query[0] as VCiShoppinglistEntity[];
 		const spls: Shoppinglist[] = [...owned, ...rows.map(spl => new Shoppinglist(spl))];
 		return spls;
 	}
 
 	async getShoppinglistPermissions(): Promise<UserShoppinglistPermission[]>{
-		const query = await dbp.query("SELECT * FROM `eshol`.`ciShoppinglistMember` WHERE `userUid` = BINARY ?;", this.userUid);
-		const rows = query[0] as ICiShoppinglistMemberEntity[];
+		const query = await dbp.query("SELECT * FROM `eshol`.`ciShoppinglistPermission` WHERE `userUid` = BINARY ?;", this.userUid);
+		const rows = query[0] as ICiShoppinglistPermissionEntity[];
 		const perms: UserShoppinglistPermission[] = [];
 		for(const row of rows){
 			const spl = await Shoppinglist.findOneBySplUid(row.splUid);

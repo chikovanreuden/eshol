@@ -233,7 +233,7 @@ export class Item extends Ci implements IBaseCi, VCiItemEntity {
 	static async findAllByUser(user: User | ICiUserEntity["userUid"]): Promise<Item[]>{
 		const userUid = user instanceof User ? user.userUid : user;
 
-		const query = await dbp.query("SELECT * FROM `vCiItem` WHERE `shoppinglist` IN (SELECT `splUid` FROM `eshol`.`ciShoppinglistMember` WHERE `userUid` = ?) OR `shoppinglist` IN (SELECT `splUid` FROM ciShoppinglist WHERE `owner` = ?);", [userUid, userUid]);
+		const query = await dbp.query("SELECT * FROM `vCiItem` WHERE `shoppinglist` IN (SELECT `splUid` FROM `eshol`.`ciShoppinglistPermission` WHERE `userUid` = ?) OR `shoppinglist` IN (SELECT `splUid` FROM ciShoppinglist WHERE `owner` = ?);", [userUid, userUid]);
 		const rows = query[0] as VCiItemEntity[];
 		return rows.map(row => new Item(row));
 	}

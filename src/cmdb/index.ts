@@ -9,6 +9,7 @@ export * from "./Item.class";
 export * from "./Shoppinglist.class";
 export * from "./ApiToken.class";
 export * from "./PwresetToken.class";
+export * from "./ShoppinglistPermission.class";
 /*
 *
 * @return new ciuid

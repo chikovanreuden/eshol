@@ -3,15 +3,14 @@
  */
 
 import {Request, Response, Router} from "express";
+import Joi from "joi";
 import { getShoppinglistPermission } from "../../../../lib/permission";
 import JsonResponse from "../../../../classes/JsonResponse";
-import { Shoppinglist, Item, User} from "../../../../cmdb/";
+import { Shoppinglist, Item, User, ShoppinglistPermission} from "../../../../cmdb/";
 import { SHOPPINGLISTMEMBER_RULE_PERMISSION, SHOPPINGLIST_SCHEMA_CREATE, SHOPPINGLIST_SCHEMA_UPDATE, USER_RULE_USERNAME } from "../../../../lib/validatorLib";
 import { ICiShoppinglistEntityCreate, ICiShoppinglistEntityUpdate } from "../../../../types/db/CiShoppinglist.Entity";
-import { ShoppinglistMember} from "../../../../cmdb/ShoppinglistMember";
-import Joi from "joi";
 import { ICiUserEntity } from "../../../../types/db/CiUser.Entity";
-import { ICiShoppinglistMemberEntity } from "../../../../types/db/CiShoppinglistMember.Entity";
+import { ICiShoppinglistPermissionEntity } from "../../../../types/db/CiShoppinglistPermission.Entity";
 const router = Router();
 export default router;
 
@@ -244,7 +243,7 @@ router.post("/:splUid/permissions", async (req: Request, res: Response) => {
 				});
 				interface IShoppinglistMemberNew {
 					username: ICiUserEntity["username"]
-					permission: ICiShoppinglistMemberEntity["permission"]
+					permission: ICiShoppinglistPermissionEntity["permission"]
 				}
 				const postData = schema.validate(req.body);
 				if(postData.error){
@@ -296,13 +295,13 @@ router.delete("/:splUid/permissions", async (req: Request, res: Response) => {
 					rtn.send(400);
 					return;
 				}
-				interface IShoppinglistMemberDelete {
+				interface ISplPermDel {
 					username: ICiUserEntity["username"]
 				}
-				const reqBody = req.body as IShoppinglistMemberDelete;
+				const reqBody = req.body as ISplPermDel;
 				const user = await User.findOneByUsername(reqBody.username);
 				if(user){
-					await ShoppinglistMember.delete(spl, user);
+					await ShoppinglistPermission.delete(spl, user);
 					rtn.send(204);
 					return;
 				}else{

@@ -17,11 +17,11 @@ select
     `ciUser`.`role` AS `role`,
     `ciUser`.`createdAt` AS `createdAt`,
     `ciUser`.`updatedAt` AS `updatedAt`;
-    ciShoppinglistMember.splUid as splUid,
-    ciShoppinglistMember.permission as permission
+    ciShoppinglistPermission.splUid as splUid,
+    ciShoppinglistPermission.permission as permission
 from
     (
         `ci`
         join `ciUser` on(`ci`.`ciUid` = `ciUser`.`userUid`)
-        join `ciShoppinglistMember` on (`ciShoppinglistMember`.`userUid` = `ciUser`.`userUid`)
+        join `ciShoppinglistPermission` on (`ciShoppinglistPermission`.`userUid` = `ciUser`.`userUid`)
     )

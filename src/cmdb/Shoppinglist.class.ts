@@ -4,8 +4,8 @@ import dbp from "../db";
 import { Ci, IBaseCi, Item, User} from "./index";
 import { ICiShoppinglistEntity, ICiShoppinglistEntityCreate, ICiShoppinglistEntityUpdate } from "../types/db/CiShoppinglist.Entity";
 import { VCiShoppinglistEntity } from "../types/db/VCiShoppinglist.Entity";
-import { ShoppinglistMember, ShoppinglistUserPermission } from "./ShoppinglistMember";
-import { ICiShoppinglistMemberEntity } from "../types/db/CiShoppinglistMember.Entity";
+import { ShoppinglistPermission, ShoppinglistUserPermission } from "./ShoppinglistPermission.class";
+import { ICiShoppinglistPermissionEntity } from "../types/db/CiShoppinglistPermission.Entity";
 
 const privateShoppinglistData = new WeakMap<any, ICiShoppinglistEntity>();
 
@@ -49,17 +49,18 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 			try{
 				await dbcon.beginTransaction();
 				// Delete the Permissions of new Owner from the SplMemberlist
-				await dbcon.query("DELETE FROM ciShoppinglistMemeber cisplmbr WHERE `splUid`=? AND `userUid`=?;", [this.splUid, newOwner.userUid]);
+				await dbcon.query("DELETE FROM ciShoppinglistPermission WHERE `splUid`=? AND `userUid`=?;", [this.splUid, newOwner.userUid]);
 				if(oldOwnerKeppPermissions){
 					// Insert new Permissions for the old Owner into the SplMemberlist
-					await dbcon.query("INSERT INTO ciShoppinglistMemeber cisplmbr SET ?;", [{
+					await dbcon.query("INSERT INTO ciShoppinglistPermission SET ?;", [{
 						splUid: this.splUid,
 						userUid: this.owner,
 						permission: "rw"
 					}]);
 				}
 				// Change Owner (userUid) of the Spl
-				await dbp.query("UPDATE `eshol`.`ciShoppinglist` SET `owner` = ? WHERE `splUid` = ?;", [newOwner.userUid, this.splUid]);
+				await dbcon.query("UPDATE `eshol`.`ciShoppinglist` SET `owner` = ? WHERE `splUid` = ?;", [newOwner.userUid, this.splUid]);
+				await dbcon.commit();
 				await this.sync();
 			}catch(err){
 				const errStr = "db_error_transation_getOwnerAsync";
@@ -82,7 +83,7 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 	}
 
 	async getUserPermissions(): Promise<ShoppinglistUserPermission[]>{
-		const members = await ShoppinglistMember.findMany({splUid: this.splUid});
+		const members = await ShoppinglistPermission.findMany({splUid: this.splUid});
 		const [owner, users] = await Promise.all([User.findOneByUserUid(this.owner), User.findManyByUserUid(members.map(mbr => mbr.userUid))]);
 		const perms: ShoppinglistUserPermission[] = [];
 		if(owner){
@@ -105,10 +106,10 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 		return perms;
 	}
 
-	async addUserPermission(user: User, permission: ICiShoppinglistMemberEntity["permission"]): Promise<boolean>{
+	async addUserPermission(user: User, permission: ICiShoppinglistPermissionEntity["permission"]): Promise<boolean>{
 		const dbcon = await dbp.getConnection();
 		try {
-			await ShoppinglistMember.create({
+			await ShoppinglistPermission.create({
 				permission,
 				userUid: user.userUid,
 				splUid: this.splUid
@@ -127,8 +128,8 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 		}
 	}
 
-	async removeUserPermission(user: User): ReturnType<ShoppinglistMember["delete"]>{
-		return ShoppinglistMember.delete(this, user);
+	async removeUserPermission(user: User): ReturnType<ShoppinglistPermission["delete"]>{
+		return ShoppinglistPermission.delete(this, user);
 	}
 
 	// async grantUserPermission(user: User){
@@ -208,11 +209,10 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 			const newCiUid = await CMDB.createCi("shoppinglist", newData.name, dbCon);
 			await dbCon.query("INSERT INTO `eshol`.`ciShoppinglist` SET `splUid` = ?, `name` = ?, `owner` = ?, privacy = ?;", [newCiUid, newData.name, newData.owner, newData.privacy]);
 			await dbCon.commit();
-			const splQuery = await dbCon.query("SELECT * FROM `eshol`.`vCiShoppinglist` WHERE `splUid` = BINARY ?;", [newCiUid]);
-			const splRows = splQuery[0] as VCiShoppinglistEntity[];
 			dbCon.release();
-			if(splRows.length === 1)
-				return new Shoppinglist(splRows[0]);
+			const spl = await Shoppinglist.findOneBySplUid(newCiUid);
+			if(spl)
+				return spl;
 			else
 				throw new Error("Error: Shoppinglist.create - more/less than 1 Shoppinglist found after creation");
 		}catch(e){
@@ -269,7 +269,7 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 	}
 
 	static async findManyByUser(user: User): Promise<Shoppinglist[]>{
-		const query = await dbp.query("SELECT * FROM vCiShoppinglist vcs WHERE `owner`=? OR `splUid` IN (SELECT `splUid` FROM ciShoppinglistMember csm WHERE userUid=?);", [user.userUid, user.userUid]);
+		const query = await dbp.query("SELECT * FROM vCiShoppinglist vcs WHERE `owner`=? OR `splUid` IN (SELECT `splUid` FROM ciShoppinglistPermission csm WHERE userUid=?);", [user.userUid, user.userUid]);
 		const rows = query[0] as VCiShoppinglistEntity[];
 		return rows.map(spl => new Shoppinglist(spl));
 	}
