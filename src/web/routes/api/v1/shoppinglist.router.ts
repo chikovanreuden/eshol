@@ -6,9 +6,12 @@ import {Request, Response, Router} from "express";
 import { getShoppinglistPermission } from "../../../../lib/permission";
 import JsonResponse from "../../../../classes/JsonResponse";
 import { Shoppinglist, Item, User} from "../../../../cmdb/";
-import { SHOPPINGLIST_SCHEMA_CREATE, SHOPPINGLIST_SCHEMA_UPDATE } from "../../../../lib/validatorLib";
+import { SHOPPINGLISTMEMBER_RULE_PERMISSION, SHOPPINGLIST_SCHEMA_CREATE, SHOPPINGLIST_SCHEMA_UPDATE, USER_RULE_USERNAME } from "../../../../lib/validatorLib";
 import { ICiShoppinglistEntityCreate, ICiShoppinglistEntityUpdate } from "../../../../types/db/CiShoppinglist.Entity";
-import { ShoppinglistMember, ShoppinglistUserPermission } from "../../../../cmdb/ShoppinglistMember";
+import { ShoppinglistMember} from "../../../../cmdb/ShoppinglistMember";
+import Joi from "joi";
+import { ICiUserEntity } from "../../../../types/db/CiUser.Entity";
+import { ICiShoppinglistMemberEntity } from "../../../../types/db/CiShoppinglistMember.Entity";
 const router = Router();
 export default router;
 
@@ -193,24 +196,7 @@ router.get("/:splUid/permissions", async (req: Request, res: Response) => {
 	if(spl){
 		if(req.userAccount){
 			if(req.userAccount.role === "admin" || req.userAccount.role === "moderator"){
-				const members = await ShoppinglistMember.findMany({splUid: spl.splUid});
-				const [owner, users] = await Promise.all([User.findOneByUserUid(spl.owner), User.findManyByUserUid(members.map(mbr => mbr.userUid))]);
-				const perms: ShoppinglistUserPermission[] = [];
-				if(owner){
-					perms.push({
-						permission: "owner",
-						user: owner
-					});
-				}
-				for(const mbr of members){
-					const user = users.find(u => u.userUid === mbr.userUid);
-					if(user){
-						perms.push({
-							permission: mbr.permission,
-							user
-						});
-					}
-				}
+				const perms = await spl.getUserPermissions();
 				rtn.addData("permissions", perms.map(perm => {
 					return {
 						permission: perm.permission,
@@ -221,25 +207,8 @@ router.get("/:splUid/permissions", async (req: Request, res: Response) => {
 				return;
 			}else if(req.userAccount.userUid === spl.owner){
 				if(spl.isActive){
-					const members = await ShoppinglistMember.findMany({splUid: spl.splUid});
-					const [owner, users] = await Promise.all([User.findOneByUserUid(spl.owner), User.findManyByUserUid(members.map(mbr => mbr.userUid))]);
-					const perms: ShoppinglistUserPermission[] = [];
-					if(owner){
-						perms.push({
-							permission: "owner",
-							user: owner
-						});
-					}
-					for(const mbr of members){
-						const user = users.find(u => u.userUid === mbr.userUid);
-						if(user && user.isActive){
-							perms.push({
-								permission: mbr.permission,
-								user
-							});
-						}
-					}
-					rtn.addData("permissions", perms.map(perm => {
+					const perms = await spl.getUserPermissions();
+					rtn.addData("permissions", perms.filter(perm => perm.user.isActive === true).map(perm => {
 						return {
 							permission: perm.permission,
 							user: perm.user.toJson("private")
@@ -257,6 +226,97 @@ router.get("/:splUid/permissions", async (req: Request, res: Response) => {
 			}
 		}
 	}
+	rtn.send(404);
+	return;
+});
+
+
+router.post("/:splUid/permissions", async (req: Request, res: Response) => {
+	const rtn = new JsonResponse(res, true);
+	const {splUid} = req.params;
+	const spl = await Shoppinglist.findOneBySplUid(splUid);
+	if(spl){
+		if(req.userAccount){
+			if(req.userAccount.role === "admin" || req.userAccount.role === "moderator" || req.userAccount.userUid === spl.owner){
+				const schema = Joi.object({
+					permission: SHOPPINGLISTMEMBER_RULE_PERMISSION.required(),
+					username: USER_RULE_USERNAME.required()
+				});
+				interface IShoppinglistMemberNew {
+					username: ICiUserEntity["username"]
+					permission: ICiShoppinglistMemberEntity["permission"]
+				}
+				const postData = schema.validate(req.body);
+				if(postData.error){
+					postData.error.details.forEach(det => rtn.addError(det.message));
+					rtn.send(400);
+					return;
+				}
+				const reqBody = req.body as IShoppinglistMemberNew;
+				const user = await User.findOneByUsername(reqBody.username);
+				if(user){
+					if(user.isActive){
+						await spl.addUserPermission(user, reqBody.permission);
+						rtn.send(204);
+						return;
+					}else{
+						rtn.addError("user_not_active");
+						rtn.send();
+						return;
+					}
+				}else{
+					rtn.addError("user_not_found");
+					rtn.send(404);
+					return;
+				}
+			}else{
+				rtn.send(403);
+				return;
+			}
+		}
+	}
+	rtn.addError("spl_not_found");
+	rtn.send(404);
+	return;
+});
+
+router.delete("/:splUid/permissions", async (req: Request, res: Response) => {
+	const rtn = new JsonResponse(res, true);
+	const {splUid} = req.params;
+	const spl = await Shoppinglist.findOneBySplUid(splUid);
+	if(spl){
+		if(req.userAccount){
+			if(req.userAccount.role === "admin" || req.userAccount.role === "moderator" || req.userAccount.userUid === spl.owner){
+				const schema = Joi.object({
+					username: USER_RULE_USERNAME.required()
+				});
+				const postData = schema.validate(req.body);
+				if(postData.error){
+					postData.error.details.forEach(det => rtn.addError(det.message));
+					rtn.send(400);
+					return;
+				}
+				interface IShoppinglistMemberDelete {
+					username: ICiUserEntity["username"]
+				}
+				const reqBody = req.body as IShoppinglistMemberDelete;
+				const user = await User.findOneByUsername(reqBody.username);
+				if(user){
+					await ShoppinglistMember.delete(spl, user);
+					rtn.send(204);
+					return;
+				}else{
+					rtn.addError("user_not_found");
+					rtn.send(404);
+					return;
+				}
+			}else{
+				rtn.send(403);
+				return;
+			}
+		}
+	}
+	rtn.addError("spl_not_found");
 	rtn.send(404);
 	return;
 });
