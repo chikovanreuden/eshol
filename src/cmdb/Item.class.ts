@@ -46,6 +46,8 @@ export class Item extends Ci implements IBaseCi, VCiItemEntity {
 	get createdAt(): ICiItemEntity["createdAt"]{ return this.internal().createdAt; }
 	get updatedAt(): ICiItemEntity["updatedAt"]{ return this.internal().updatedAt; }
 	get privacy(): VCiItemEntity["privacy"]{ return this.internal().privacy; }
+	get removedAt(): VCiItemEntity["removedAt"] { return this.internal().removedAt; }
+	get removedBy(): VCiItemEntity["removedBy"] { return this.internal().removedBy; }
 
 	async buy(opt: ICiItemEntityBuy, buyer: User): Promise<void>{
 		const USER_SPL_PERM = await getShoppinglistPermission(this.shoppinglist, buyer);
@@ -103,10 +105,8 @@ export class Item extends Ci implements IBaseCi, VCiItemEntity {
 				updatedAt: this.updatedAt,
 				isActive: this.isActive,
 				isDeleted: this.isDeleted,
-				ciDeactivatedAt: this.ciDeactivatedAt,
-				ciDeactivatedBy: this.ciDeactivatedBy,
-				ciDeletedAt: this.ciDeletedAt,
-				ciDeletedBy: this.ciDeletedBy,
+				removedAt: this.removedAt,
+				removedBy: this.removedBy
 			};
 		}else if(vis === "internal"){
 			return {
@@ -136,7 +136,9 @@ export class Item extends Ci implements IBaseCi, VCiItemEntity {
 				createdAt: this.createdAt,
 				updatedAt: this.updatedAt,
 				isActive: this.isActive,
-				isDeleted: this.isDeleted
+				isDeleted: this.isDeleted,
+				removedAt: this.removedAt,
+				removedBy: this.removedBy
 			};
 		}else {
 			return {

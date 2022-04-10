@@ -18,6 +18,8 @@ export interface ICiItemEntity{
 	totalPrice: number | null
 	createdAt: Date
 	updatedAt: Date
+	removedAt: Date
+	removedBy: ICiUserEntity["userUid"]
 }
 
 export interface ICiItemEntityNew {
