@@ -61,31 +61,34 @@ router.post("/", async (req: Request, res: Response) => {
 			return;
 		}
 		const reqBody = req.body as ICiShoppinglistEntityCreate;
-		if(req.userAccount.userUid === reqBody.owner){
-			const newSplCreated = await Shoppinglist.create({
-				name: reqBody.name,
-				owner: reqBody.owner,
-				privacy: reqBody.privacy
-			});
-			rtn.addData("shoppinglist", newSplCreated.toJson("private")).send();
-			return;
-		}else if(["admin", "moderator"].includes(req.userAccount.role)){
-			const user = await User.findOneByUserUid(reqBody.owner);
-			if(user){
-				const newSplCreated = await Shoppinglist.create({
-					name: reqBody.name,
-					owner: reqBody.owner,
-					privacy: reqBody.privacy
-				});
-				rtn.addData("shoppinglist", newSplCreated.toJson("internal")).send(200);
+		switch(req.userAccount.role){
+			case "admin":
+			case "moderator":
+				const user = await User.findOneByUserUid(reqBody.owner);
+				if(user){
+					const newSplCreated = await Shoppinglist.create({
+						name: reqBody.name,
+						owner: reqBody.owner,
+						privacy: reqBody.privacy
+					});
+					rtn.addData("shoppinglist", newSplCreated.toJson("internal")).send(200);
+					return;
+				}else{
+					rtn.addError("spl_create_user_not_found").send(404);
+					return;
+				}
+			default:
+				if(req.userAccount.userUid === reqBody.owner){
+					const newSplCreated = await Shoppinglist.create({
+						name: reqBody.name,
+						owner: reqBody.owner,
+						privacy: reqBody.privacy
+					});
+					rtn.addData("shoppinglist", newSplCreated.toJson("private")).send();
+					return;
+				}
+				rtn.addError("spl_create_no_permission").send(401);
 				return;
-			}else{
-				rtn.addError("spl_create_user_not_found").send(404);
-				return;
-			}
-		}else{
-			rtn.addError("spl_create_no_permission").send(401);
-			return;
 		}
 	}
 	rtn.send(401);
@@ -99,10 +102,29 @@ router.get("/:splUid", async (req: Request, res: Response) => {
 	if(spl){
 		let vis: "public" | "private" | "internal" = "public";
 		if(req.userAccount){
-			if(req.userAccount.role === "admin") vis = "internal";
-			if(req.userAccount.role === "moderator" || req.userAccount.userUid === spl.owner) vis = "private";
+			switch(req.userAccount.role){
+				case "admin":
+					vis = "internal";
+					break;
+				case "moderator":
+					vis = "private";
+					break;
+				default:
+					if(req.userAccount.userUid === spl.owner){
+						vis = "private";
+					}else{
+						if(spl.privacy === "private"){
+							const userPerms = await ShoppinglistPermission.findMany({splUid: spl.splUid, userUid: req.userAccount.userUid});
+							if(userPerms && userPerms.length === 1){
+								vis = "private";
+							}
+						}
+					}
+					break;
+			}
 		}
-		rtn.addData("shoppinglist", spl.toJson(vis));
+		rtn.addData("shoppinglist", spl.toJson(vis)).send();
+		return;
 	}
 	rtn.send(404);
 	return;
@@ -114,7 +136,11 @@ router.patch("/:splUid", async (req: Request, res: Response) => {
 	if(req.userAccount){
 		const spl = await Shoppinglist.findOneBySplUid(splUid);
 		if(spl){
-			if(req.userAccount.role === "admin" || req.userAccount.role === "moderator" || req.userAccount.userUid === spl.owner){
+			if(
+				req.userAccount.role === "admin"
+				|| req.userAccount.role === "moderator"
+				|| req.userAccount.userUid === spl.owner
+			){
 				const postData = SHOPPINGLIST_SCHEMA_UPDATE.validate(req.body);
 				if(postData.error){
 					postData.error.details.map(det => rtn.addError(det.message));
@@ -123,8 +149,7 @@ router.patch("/:splUid", async (req: Request, res: Response) => {
 				}
 				const reqBody = req.body as ICiShoppinglistEntityUpdate;
 				await spl.update(reqBody);
-				rtn.addData("shoppinglist", spl.toJson((req.userAccount.role === "admin" || req.userAccount.role === "moderator" ? "internal" : "private")));
-				rtn.send();
+				rtn.addData("shoppinglist", spl.toJson((req.userAccount.role === "admin" || req.userAccount.role === "moderator" ? "internal" : "private"))).send();
 				return;
 			}else{
 				rtn.send(403);
@@ -142,20 +167,17 @@ router.patch("/:splUid", async (req: Request, res: Response) => {
 router.delete("/:splUid", async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
 	const {splUid} = req.params;
-	const spl = await Shoppinglist.findOneBySplUid(splUid);
-	if(spl){
-		if(req.userAccount){
+	if(req.userAccount){
+		const spl = await Shoppinglist.findOneBySplUid(splUid);
+		if(spl){
 			if(req.userAccount.role === "admin" || req.userAccount.role === "moderator" || req.userAccount.userUid === spl.owner){
 				await spl.deleteCi();
 				rtn.send(204);
 				return;
 			}
-		}else{
-			rtn.send(401);
-			return;
 		}
 	}
-	rtn.send(404);
+	rtn.send(401);
 	return;
 });
 
@@ -163,26 +185,27 @@ router.get("/:splUid/items", async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
 	const {splUid} = req.params;
 	const [spl, items] = await Promise.all([await Shoppinglist.findOneBySplUid(splUid), await Item.findAllByShoppinglist(splUid)]);
-	if(req.userAccount){
-		if(req.userAccount.role === "admin" || req.userAccount.role === "moderator"){
-			rtn.addData("items", items.map(itm => itm.toJson("internal")));
-			rtn.send();
-			return;
-		}
-		if(req.userAccount.userUid === spl.owner){
-			rtn.addData("items", items.map(itm => itm.toJson("private")));
-			rtn.send();
-			return;
-		}
-		const perm = await getShoppinglistPermission(spl, req.userAccount);
-		if(perm){
-			rtn.addData("items", items.map(itm => itm.toJson("private")));
-			rtn.send();
-			return;
-		}else{
+	if(spl.privacy === "private"){
+		if(req.userAccount){
+			if(req.userAccount.role === "admin" || req.userAccount.role === "moderator"){
+				rtn.addData("items", items.map(itm => itm.toJson("internal"))).send();
+				return;
+			}
+			// if(req.userAccount.userUid === spl.owner){
+			// 	rtn.addData("items", items.map(itm => itm.toJson("private"))).send();
+			// 	return;
+			// }
+			const perm = await getShoppinglistPermission(spl, req.userAccount);
+			if(perm){
+				rtn.addData("items", items.map(itm => itm.toJson("private"))).send();
+				return;
+			}
 			rtn.send(403);
 			return;
 		}
+	}else if(spl.privacy === "public"){
+		rtn.addData("items", items.map(item => item.toJson("private"))).send();
+		return;
 	}
 	rtn.send(401);
 	return;
@@ -191,9 +214,9 @@ router.get("/:splUid/items", async (req: Request, res: Response) => {
 router.get("/:splUid/permissions", async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
 	const {splUid} = req.params;
-	const spl = await Shoppinglist.findOneBySplUid(splUid);
-	if(spl){
-		if(req.userAccount){
+	if(req.userAccount){
+		const spl = await Shoppinglist.findOneBySplUid(splUid);
+		if(spl){
 			if(req.userAccount.role === "admin" || req.userAccount.role === "moderator"){
 				const perms = await spl.getUserPermissions();
 				rtn.addData("permissions", perms.map(perm => {
@@ -201,8 +224,7 @@ router.get("/:splUid/permissions", async (req: Request, res: Response) => {
 						permission: perm.permission,
 						user: perm.user.toJson("internal")
 					};
-				}));
-				rtn.send();
+				})).send();
 				return;
 			}else if(req.userAccount.userUid === spl.owner){
 				if(spl.isActive){
@@ -212,8 +234,7 @@ router.get("/:splUid/permissions", async (req: Request, res: Response) => {
 							permission: perm.permission,
 							user: perm.user.toJson("private")
 						};
-					}));
-					rtn.send();
+					})).send();
 					return;
 				}else{
 					rtn.send(404);
@@ -224,8 +245,10 @@ router.get("/:splUid/permissions", async (req: Request, res: Response) => {
 				return;
 			}
 		}
+		rtn.send(404);
+		return;
 	}
-	rtn.send(404);
+	rtn.send(401);
 	return;
 });
 
