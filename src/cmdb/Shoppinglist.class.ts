@@ -231,6 +231,8 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 
 	static async findMany(filter?: {
 		privacy: ICiShoppinglistEntity["privacy"]
+		active?: boolean
+		deleted?: boolean
 	}): Promise<Shoppinglist[]>{
 		const dbcon = await dbp.getConnection();
 		let whereClause = "";
@@ -238,6 +240,16 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 		if(filter){
 			if(filter.privacy){
 				whereContitions.push(`\`privacy\` = ${dbcon.escape(filter.privacy)}`);
+			}
+			if(filter.active === true){
+				whereContitions.push("`ciDeletedAt` IS NULL AND `ciDeactivatedAt` IS NULL`");
+			}else if(filter.active === false){
+				whereContitions.push("`ciDeletedAt` IS NULL AND `ciDeactivatedAt` IS NOT NULL`");
+			}
+			if(filter.deleted === true){
+				whereContitions.push("`ciDeletedAt` IS NOT NULL");
+			}else if(filter.deleted === false){
+				whereContitions.push("`ciDeletedAt` IS NULL`");
 			}
 		}
 		if(whereContitions.length > 0){

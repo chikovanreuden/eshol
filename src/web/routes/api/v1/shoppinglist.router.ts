@@ -41,13 +41,15 @@ router.get("/", async (req: Request, res: Response) => {
 				return;
 			default:
 				vis = "public";
-				spls = await Shoppinglist.findManyByUser(req.userAccount);
-				rtn.addData("shoppinglist", spls.map(spl => spl.toJson(vis))).send(200);
+				const [userSpls, publicspls] = await Promise.all([ Shoppinglist.findManyByUser(req.userAccount), Shoppinglist.findMany({ privacy: "public" })]);
+				const splAll = [...userSpls, ...publicspls];
+				rtn.addData("shoppinglist", splAll.map(spl => spl.toJson(vis))).send(200);
 				return;
 		}
 	}else{
 		spls = await Shoppinglist.findMany({privacy: "public"});
 		rtn.addData("shoppinglist", spls.map(spl => spl.toJson(vis))).send(200);
+		return;
 	}
 });
 
