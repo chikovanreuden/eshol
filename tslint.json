@@ -11,7 +11,7 @@
     "no-use-before-declare": true,
     "no-invalid-template-strings": true,
     "no-floating-promises": true,
-    "semicolon": [true, "never"],
+    "semicolon": [true, "always"],
     "indent": [true, "tabs", 2],
     "comment-format": false,
     "no-trailing-whitespace": true,

@@ -10,7 +10,6 @@ router.get("/email/:verificationtoken", async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
 	const { verificationtoken } = req.params;
 	const verData = USER_RULE_VERIFICATIONTOKEN.validate(verificationtoken.trim());
-	WLOGGER.debug("Email VerificationToken", verData.value);
 	if(verData.error){
 		verData.error.details.forEach(det => rtn.addError(det.message));
 		rtn.send(400);
@@ -20,12 +19,7 @@ router.get("/email/:verificationtoken", async (req: Request, res: Response) => {
 	try{
 		const userAccount = await User.verifyEmail(verData.value);
 		if(userAccount){
-			rtn.addData("user", {
-				username: userAccount.username,
-				displayname: userAccount.displayname,
-				email: userAccount.email,
-				isVerified: userAccount.isVerified
-			}).send();
+			rtn.addData("user", userAccount.toJson("private")).send();
 			return;
 		}
 		rtn.send(404);

@@ -6,6 +6,7 @@ import { ICiShoppinglistEntity, ICiShoppinglistEntityCreate, ICiShoppinglistEnti
 import { VCiShoppinglistEntity } from "../types/db/VCiShoppinglist.Entity";
 import { ShoppinglistPermission, ShoppinglistUserPermission } from "./ShoppinglistPermission.class";
 import { ICiShoppinglistPermissionEntity } from "../types/db/CiShoppinglistPermission.Entity";
+import Visibility from "src/types/Vis";
 
 const privateShoppinglistData = new WeakMap<any, ICiShoppinglistEntity>();
 
@@ -62,10 +63,10 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 				await dbcon.query("UPDATE `eshol`.`ciShoppinglist` SET `owner` = ? WHERE `splUid` = ?;", [newOwner.userUid, this.splUid]);
 				await dbcon.commit();
 				await this.sync();
-			}catch(err){
+			}catch(error){
 				const errStr = "db_error_transation_getOwnerAsync";
 				WLOGGER.error( errStr, {
-					err,
+					error,
 					newOwner: newOwner.toJson("internal")
 				});
 				await dbcon.rollback();
@@ -139,7 +140,7 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 		return `${this.splUid} ${this.name}`;
 	}
 
-	toJson(vis?: "public" | "private" | "internal"): Partial<Shoppinglist> {
+	toJson(vis?: Visibility): Partial<Shoppinglist> {
 		if(vis === "private"){
 			return {
 				name: this.name,
@@ -262,7 +263,7 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 	}
 
 	static async findOneBySplUid(splUid: ICiShoppinglistEntity["splUid"]): Promise<Shoppinglist>{
-		const query = await dbp.query("SELECT * FROM `eshol`.`vCiShoppinglist` WHERE `splUid` = ?;", [splUid]);
+		const query = await dbp.query("SELECT * FROM `eshol`.`vCiShoppinglist` WHERE `splUid` = BINARY ?;", [splUid]);
 		const rows = query[0] as VCiShoppinglistEntity[];
 		if(rows.length === 1) return new Shoppinglist(rows[0]);
 		else throw new Error("Shoppinlist.class.ts::findOneBySplUid(), rows.length !== 1");
@@ -281,7 +282,7 @@ export class Shoppinglist extends Ci implements IBaseCi, VCiShoppinglistEntity {
 	}
 
 	static async findManyByUser(user: User): Promise<Shoppinglist[]>{
-		const query = await dbp.query("SELECT * FROM vCiShoppinglist vcs WHERE `owner`=? OR `splUid` IN (SELECT `splUid` FROM ciShoppinglistPermission csm WHERE userUid=?);", [user.userUid, user.userUid]);
+		const query = await dbp.query("SELECT * FROM `eshol`.`vCiShoppinglist` WHERE (`splUid` IN (SELECT `splUid` FROM `eshol`.`ciShoppinglistPermission` WHERE `userUid` = BINARY ?) OR `owner` = BINARY ?);", [user.userUid, user.userUid]);
 		const rows = query[0] as VCiShoppinglistEntity[];
 		return rows.map(spl => new Shoppinglist(spl));
 	}

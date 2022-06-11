@@ -14,18 +14,18 @@ interface IJsonResponsePrivateData extends IJsonResponse {
 	res: Response
 }
 
-const privMap = new WeakMap<any, IJsonResponsePrivateData>();
+const privateMap = new WeakMap<any, IJsonResponsePrivateData>();
 
 export class JsonResponse {
 	private clearDataOnError: boolean;
 	private isSend = false;
 	private internal = (): IJsonResponsePrivateData => {
-		const val = privMap.get(this);
+		const val = privateMap.get(this);
 		if(val) return val;
 		else throw new Error("Error in JsonResponse.internal() -> Key 'this' does not exist");
 	};
 	constructor(res: Response, clearDataOnError: boolean, message?: string){
-		privMap.set(this, {
+		privateMap.set(this, {
 			message,
 			result: "ok",
 			res,
@@ -72,7 +72,8 @@ export class JsonResponse {
 		if(this.message && this.message.length > 0){
 			rtn.message = this.message;
 		}
-		if(this.hasErrors){
+		if(this.hasErrors || this.status === 500){
+			this.clearData();
 			rtn.rid = this.rid;
 			rtn.errors = this.errors;
 			rtn.result = "error";
@@ -88,6 +89,7 @@ export class JsonResponse {
 	}
 
 	send(httpCode = 200): void {
+		this.internal().status = httpCode;
 		if(this.isSend === true) throw new Error("Cannot send a Response. Response has already been send!");
 		if(httpCode >= 200 && httpCode <= 299){
 			if(httpCode === 204){
@@ -103,7 +105,7 @@ export class JsonResponse {
 			}
 			this.internal().res.status(httpCode).json(this.build());
 			return;
-		}else {
+		} else {
 			if(this.clearDataOnError) Object.keys(this.data).forEach(key => delete this.data[key]);
 			if(httpCode >= 400 && httpCode <= 499){
 				if(httpCode === 404){

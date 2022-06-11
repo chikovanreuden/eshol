@@ -1,13 +1,21 @@
 import {Request, Response, Router} from "express";
-import { USER_RULE_USERNAME, USER_SCHEMA_REGISTER, USER_SCHEMA_UPDATE, USER_SCHEMA_UPDATE_SELF } from "../../../../lib/validatorLib";
+import Joi from "joi";
+import { CI_RULE_CIUID, USER_RULE_USERNAME, USER_SCHEMA_REGISTER, USER_SCHEMA_UPDATE, USER_SCHEMA_UPDATE_SELF } from "../../../../lib/validatorLib";
 import { ICiUserEntityRegister, ICiUserEntityUpdate, ICiUserEntityUpdateSelf } from "../../../../types/db/CiUser.Entity";
 import WLOGGER from "../../../../wlogger";
 import JsonResponse from "../../../../classes/JsonResponse";
-import Joi from "joi";
 import Visibility from "../../../../types/Vis";
-import { Item, User} from "../../../../cmdb/";
+import { Item, Shoppinglist, User} from "../../../../cmdb/";
+import { checkParamUsername } from "../../../middleware/checkParams";
 const router = Router();
 export default router;
+
+/**
+ * responses:
+ * 200
+ * 400
+ * 404
+ */
 
 router.get("/", async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
@@ -29,7 +37,7 @@ router.get("/", async (req: Request, res: Response) => {
 		}
 		const user = await User.findOneByUsername(req.query.username as string);
 		if(user){
-			rtn.addData("user", user.toJson(vis));
+			rtn.addData("user", user.toJson(vis)).send(200);
 			return;
 		}
 		rtn.send(404);
@@ -67,16 +75,11 @@ router.post("/", async (req: Request, res: Response) => {
 		rtn.send();
 		return;
 	}
-
-	const user = await User.create({username, email, password, displayname});
-	if(user){
-		rtn.addData("user", {
-			username: user.username,
-			email: user.email,
-			displayname: user.displayname
-		}).send(201);
+	try {
+		const user = await User.create({username, email, password, displayname});
+		rtn.addData("user", user.toJson("private")).send(201);
 		return;
-	}else{
+	} catch (error) {
 		WLOGGER.error("Error while creating User", {
 			file: "user.router.ts",
 			function: "router.post('/')",
@@ -86,23 +89,40 @@ router.post("/", async (req: Request, res: Response) => {
 				displayname,
 				email,
 				password: "**censored**"
-			}
+			},
+			error
 		});
 		rtn.addError("user_registration_failed").send(500);
 		return;
 	}
 });
 
-router.get("/:username", async (req: Request, res: Response) => {
+router.get("/id/:userUid", async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
 	const reqParamsValid = Joi.object({
-		username: USER_RULE_USERNAME.required()
+		userUid: CI_RULE_CIUID.required()
 	}).validate(req.params);
 	if(reqParamsValid.error){
 		reqParamsValid.error.details.forEach(det => rtn.addError(det.message));
 		rtn.send(400);
 		return;
 	}
+	const ciUser = await User.findOneByUserUid(req.params.userUid);
+	if(ciUser){
+		let vis: Visibility = "public";
+		if(req.userAccount){
+			if(req.userAccount.role === "admin") vis = "internal";
+			if(req.userAccount.role === "moderator") vis = "private";
+		}
+		rtn.addData("user", ciUser.toJson(vis)).send();
+		return;
+	}
+	rtn.send(404);
+	return;
+});
+
+router.get("/:username", checkParamUsername, async (req: Request, res: Response) => {
+	const rtn = new JsonResponse(res, true);
 	const ciUser = await User.findOneByUsername(req.params.username);
 	if(ciUser){
 		let vis: Visibility = "public";
@@ -117,30 +137,48 @@ router.get("/:username", async (req: Request, res: Response) => {
 	return;
 });
 
-router.get("/:username/shoppinglists", async (req: Request, res: Response) => {
+router.get("/:username/shoppinglists", checkParamUsername, async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
 	if(req.userAccount){
+		const vis: Visibility = ["admin", "moderator"].includes(req.userAccount.role) ? "internal" : "private";
 		if(req.userAccount.username === req.params.username){
-			const spls = await req.userAccount.getShoppinglistsAsync();
-			rtn.addData("shoppinglists", spls.map(spl => spl.toJson("private"))).send();
+			const spls = await Shoppinglist.findManyByUser(req.userAccount);
+			rtn.addData("shoppinglists", spls.map(spl => spl.toJson(vis)));
+			return;
 		}else if(["admin", "moderator"].includes(req.userAccount.role)){
-			const spls = await req.userAccount.getShoppinglistsAsync();
-			rtn.addData("shoppinglists", spls.map(spl => spl.toJson("internal"))).send();
+			const user = await User.findOneByUsername(req.params.username);
+			if(user){
+				const spls = await Shoppinglist.findManyByUser(user);
+				rtn.addData("shoppinglists", spls.map(spl => spl.toJson("internal")));
+				return;
+			}else{
+				rtn.send(404); // user_not_found
+				return;
+			}
 		}
 	}
 	rtn.send(401);
 	return;
 });
 
-router.get("/:username/items", async (req: Request, res: Response) => {
+router.get("/:username/items", checkParamUsername, async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
 	if(req.userAccount){
+		const vis: Visibility = ["admin", "moderator"].includes(req.userAccount.role) ? "internal" : "private";
 		if(req.userAccount.username === req.params.username){
 			const items = await Item.findAllByUser(req.userAccount);
-			rtn.addData("items", items.map(item => item.toJson("private"))).send();
+			rtn.addData("items", items.map(item => item.toJson(vis)));
+			return;
 		}else if(["admin", "moderator"].includes(req.userAccount.role)){
-			const spls = await req.userAccount.getShoppinglistsAsync();
-			rtn.addData("shoppinglists", spls.map(spl => spl.toJson("internal"))).send();
+			const user = await User.findOneByUsername(req.params.username);
+			if(user){
+				const items = await Item.findAllByUser(user);
+				rtn.addData("items", items.map(item => item.toJson(vis)));
+				return;
+			}else{
+				rtn.send(404); // user_not_found
+				return;
+			}
 		}
 	}
 	rtn.send(401);
@@ -168,7 +206,7 @@ router.get("/:username/items", async (req: Request, res: Response) => {
 
 // });
 
-router.patch("/:username", async (req: Request, res: Response) => {
+router.patch("/:username", checkParamUsername, async (req: Request, res: Response) => {
 	const rtn = new JsonResponse(res, true);
 	if(req.userAccount){
 		if(req.userAccount.role === "admin"){

@@ -5,8 +5,7 @@ import dbp from "../db";
 import * as pw from "../pw";
 import * as id from "../id";
 
-import { Ci, IBaseCi, ApiToken} from "./index";
-import { Shoppinglist } from "./index";
+import { Ci, IBaseCi, Shoppinglist, ApiToken} from "./index";
 import { ICiUserEntity, ICiUserEntityNew, ICiUserEntityRegister, ICiUserEntityUpdate, } from "../types/db/CiUser.Entity";
 import { IUserpasswdEntity } from "../types/db/UserPwSafe.Entity";
 import { VCiUserEntity } from "../types/db/VCiUser.Entity";
@@ -17,6 +16,7 @@ import { ICiShoppinglistPermissionEntity } from "../types/db/CiShoppinglistPermi
 import Visibility from "../types/Vis";
 import { getLinkPublic } from "../lib/links";
 import { sendEmailVerificationConfirmed, sendEmailVerificationToken } from "../mailer";
+import ShoppinglistPermission from "./ShoppinglistPermission.class";
 
 type UserShoppinglistPermission = {
 	permission: ICiShoppinglistPermissionEntity["permission"] | "owner"
@@ -104,31 +104,6 @@ export class User extends Ci implements IBaseCi, VCiUserEntity {
 		return Shoppinglist.findManyByOwner(this);
 	};
 
-	async getShoppinglistsAsync(): Promise<Shoppinglist[]>{
-		// TODO: Change to Promise.all();
-		const owned = await this.getShoppinglistsOwnedAsync();
-		const query = await dbp.query("SELECT * FROM `eshol`.`vCiShoppinglist` WHERE `splUid` IN (SELECT `splUid` FROM `eshol`.`ciShoppinglistPermission` WHERE `userUid` = BINARY ?) OR `owner` = BINARY ?;", [this.userUid, this.userUid]);
-		const rows = query[0] as VCiShoppinglistEntity[];
-		const spls: Shoppinglist[] = [...owned, ...rows.map(spl => new Shoppinglist(spl))];
-		return spls;
-	}
-
-	async getShoppinglistPermissions(): Promise<UserShoppinglistPermission[]>{
-		const query = await dbp.query("SELECT * FROM `eshol`.`ciShoppinglistPermission` WHERE `userUid` = BINARY ?;", this.userUid);
-		const rows = query[0] as ICiShoppinglistPermissionEntity[];
-		const perms: UserShoppinglistPermission[] = [];
-		for(const row of rows){
-			const spl = await Shoppinglist.findOneBySplUid(row.splUid);
-			if(spl){
-				perms.push({
-					permission: spl.owner === this.userUid ? "owner" : row.permission,
-					spl
-				});
-			}
-		}
-		return perms;
-	}
-
 	async checkPassword(plainPassword: string): Promise<boolean>{
 		const query = await dbp.query(
 			"SELECT * FROM `eshol`.`userpasswd` WHERE `ciUser_userUid` = BINARY ? ORDER BY `createdAt` DESC LIMIT 1;",
@@ -198,6 +173,7 @@ export class User extends Ci implements IBaseCi, VCiUserEntity {
 	toJson(vis?: "public" | "private" | "internal"): Partial<User>{
 		if(vis === "private"){
 			return {
+				userUid: this.userUid,
 				username: this.username,
 				displayname: this.displayname,
 				role: this.role,
@@ -232,6 +208,7 @@ export class User extends Ci implements IBaseCi, VCiUserEntity {
 			};
 		}else {
 			return {
+				userUid: this.userUid,
 				username: this.username,
 				displayname: this.displayname,
 				role: this.role
@@ -438,13 +415,13 @@ export class User extends Ci implements IBaseCi, VCiUserEntity {
 			}else{
 				throw new Error("Error: User.create() - couldn't find created User by newCiUid");
 			}
-		}catch(e){
+		}catch(error){
 			await dbcon.rollback();
 			WLOGGER.error("Error User.create()", {
-				e,
+				error,
 				newUserInfo
 			});
-			throw e;
+			throw error;
 		}finally{
 			dbcon.release();
 		}
