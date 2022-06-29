@@ -63,6 +63,7 @@ export class Ci implements ICiEntity{
 	get isDeleted(): boolean { return this.ciInternal().ciDeletedAt instanceof Date ? true : false; }
 	get isActive(): boolean {
 		if(this.isDeleted) return false;
+		// TODO: Maybe check if the Date is in the Future so CIs can be marked to be deleted/deactivated at a specific Point in the Future
 		return this.ciDeactivatedAt instanceof Date ? false : true;
 	}
 	get ciDescription(): string { return `${this.ciUid} ${this.ciName}`; }
