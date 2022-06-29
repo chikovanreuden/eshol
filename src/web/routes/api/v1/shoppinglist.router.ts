@@ -48,11 +48,9 @@ router.get("/", async (req: Request, res: Response) => {
 				rtn.addData("shoppinglist", splAll.map(spl => spl.toJson(vis))).send(200);
 				return;
 		}
-	}else{
-		spls = await Shoppinglist.findMany({privacy: "public"});
-		rtn.addData("shoppinglist", spls.map(spl => spl.toJson(vis))).send(200);
-		return;
 	}
+	rtn.send(204);
+	return;
 });
 
 router.post("/", async (req: Request, res: Response) => {
@@ -105,27 +103,28 @@ router.get("/:splUid", async (req: Request, res: Response) => {
 	const spl = await Shoppinglist.findOneBySplUid(splUid);
 	if(spl){
 		let vis: Visibility | null = null;
-		if(spl.isActive){
-
-		}
-		if(spl.privacy === "private"){
-			if(req.userAccount){
-				if(req.userAccount.role === "admin") vis = "internal";
-				else if(req.userAccount.role === "moderator") vis = "private";
-				else if(req.userAccount.userUid === spl.owner) vis = "private";
-				else {
+		if(req.userAccount){
+			if(req.userAccount.role === "admin")
+				vis = "internal";
+			else if(req.userAccount.role === "moderator")
+				vis = "private";
+			else if(req.userAccount.userUid === spl.owner)
+				vis = "private";
+			else if(spl.isActive === true){
+				if(spl.privacy === "private"){
 					const userPerms = await ShoppinglistPermission.findMany({splUid: spl.splUid, userUid: req.userAccount.userUid});
-					if(userPerms && userPerms.length === 1) vis = "private";
+					if(userPerms && userPerms.length === 1)
+						vis = "private";
+				}else if(spl.privacy === "public"){
+					vis = "private";
 				}
 			}
-			if(vis){
-				rtn.addData("shoppinglist", spl.toJson(vis)).send();
-				return;
-			}
-		}else if(spl.privacy === "public"){
-			rtn.addData("shoppinglist", spl.toJson("private")).send();
-			return;
+		}else{
+			if(spl.privacy ==="public" && spl.isActive === true)
+				vis = "private";
 		}
+		if(vis !== null)
+			rtn.addData("shoppinglist", spl.toJson(vis)).send();
 	}
 	rtn.send(404);
 	return;
