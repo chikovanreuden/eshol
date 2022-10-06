@@ -151,7 +151,7 @@ module.exports = {
         "@typescript-eslint/no-misused-promises": [
             "off",
             {
-              "checksConditionals": false
+                "checksConditionals": false
             }
         ],
         // TODO: Change this in Refactor (after JS -> TS Migration)
@@ -231,7 +231,7 @@ module.exports = {
         "no-obj-calls": "error",
         "no-octal": "error",
         "no-prototype-builtins": "error",
-        "no-redeclare": "error",
+        // "no-redeclare": "error",
         "no-regex-spaces": "error",
         "no-self-assign": "error",
         "no-setter-return": "error",
@@ -261,7 +261,7 @@ module.exports = {
             "error",
             "never"
         ],
-        "prefer-arrow/prefer-arrow-functions": "error",
+        // "prefer-arrow/prefer-arrow-functions": "error",
         "prefer-const": "error",
         "radix": "off",
         "require-await": "off",
